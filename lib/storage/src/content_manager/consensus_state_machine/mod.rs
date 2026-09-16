@@ -41,7 +41,8 @@ use segment::data_types::collection_defaults::CollectionConfigDefaults;
 use segment::types::{HnswConfig, ShardKey};
 
 pub use self::action::{
-    Action, CollectionConfigDiff, TransferOutcome, apply_collection_config_diffs,
+    Action, CollectionConfigDiff, LocalShardInitMode, TransferOutcome,
+    apply_collection_config_diffs,
 };
 pub use self::state::ClusterState;
 use super::errors::StorageResult;
@@ -170,8 +171,12 @@ impl ConsensusStateMachine {
                 ApplyOutcome::new(result)
             }
 
-            CollectionMetaOperations::SetShardReplicaState(_)
-            | CollectionMetaOperations::TransferShard(_, _) => ApplyOutcome::NotCovered,
+            CollectionMetaOperations::TransferShard(collection, operation) => ApplyOutcome::new(
+                self.state
+                    .plan_transfer(&self.context, collection, operation),
+            ),
+
+            CollectionMetaOperations::SetShardReplicaState(_) => ApplyOutcome::NotCovered,
 
             CollectionMetaOperations::CreateNamedVector(operation) => {
                 ApplyOutcome::new(self.state.plan_create_named_vector(operation))

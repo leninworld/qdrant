@@ -1,5 +1,6 @@
 use collection::collection::vector_name_schema;
 use collection::collection_state::ShardInfo;
+use collection::shards::transfer::ShardTransfer;
 
 use super::*;
 
@@ -199,11 +200,76 @@ impl ClusterState {
                 shard.replicas.insert(*peer_id, *replica_state);
             }
 
+            Action::RemoveReplica {
+                collection,
+                shard_id,
+                peer_id,
+            } => {
+                let Some(state) = self.collection_mut(collection) else {
+                    return;
+                };
+                let Some(shard) = state.shards.get_mut(shard_id) else {
+                    return;
+                };
+
+                shard.replicas.remove(peer_id);
+            }
+
+            // Builds or resets a node-local shard without changing consensus state
+            Action::InitLocalShard { .. } => {}
+
+            Action::RegisterTransfer {
+                collection,
+                transfer,
+            } => {
+                let Some(state) = self.collection_mut(collection) else {
+                    return;
+                };
+
+                state.transfers.insert(transfer.clone());
+            }
+
+            Action::SetTransferMethod {
+                collection,
+                key,
+                method,
+            } => {
+                let Some(state) = self.collection_mut(collection) else {
+                    return;
+                };
+
+                let existing = state
+                    .transfers
+                    .iter()
+                    .find(|transfer| transfer.key() == *key)
+                    .cloned();
+
+                let Some(existing) = existing else {
+                    return;
+                };
+
+                state.transfers.remove(&existing);
+
+                let transfer = ShardTransfer {
+                    shard_id: existing.shard_id,
+                    to_shard_id: None,
+                    from: existing.from,
+                    to: existing.to,
+                    sync: existing.sync,
+                    method: Some(*method),
+                    filter: None,
+                };
+
+                state.transfers.insert(transfer);
+            }
+
             // These actions only affect data or node-local runtime state
             Action::DeleteMigratedPoints { .. }
             | Action::RevertHashRing { .. }
             | Action::StopTransferDriver { .. }
-            | Action::RevertProxyShard { .. } => {}
+            | Action::RevertProxyShard { .. }
+            | Action::UnproxifyShard { .. }
+            | Action::SpawnTransferDriver { .. } => {}
 
             Action::SetReshardingState {
                 collection,
