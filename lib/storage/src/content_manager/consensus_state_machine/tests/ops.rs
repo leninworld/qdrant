@@ -1409,6 +1409,42 @@ fn transfer_restart() {
 }
 
 #[test]
+fn transfer_restart_validates_initial_state_before_shard() {
+    let mut state = transfer_state();
+    let transfer = ShardTransfer {
+        shard_id: 1,
+        to_shard_id: None,
+        from: PEER_ID,
+        to: OTHER_PEER_ID,
+        sync: false,
+        method: Some(ShardTransferMethod::StreamRecords),
+        filter: None,
+    };
+    state
+        .collections
+        .get_mut(COLLECTION)
+        .expect("collection")
+        .transfers
+        .insert(transfer.clone());
+
+    let restart = ShardTransferRestart {
+        shard_id: transfer.shard_id,
+        to_shard_id: transfer.to_shard_id,
+        from: transfer.from,
+        to: transfer.to,
+        method: ShardTransferMethod::ReshardingStreamRecords,
+    };
+
+    let mut machine = state_machine(state);
+    let outcome = machine.apply(&transfer_op(ShardTransferOperations::Restart(restart)));
+
+    assert!(matches!(
+        outcome,
+        ApplyOutcome::Rejected(StorageError::BadInput { .. })
+    ));
+}
+
+#[test]
 fn transfer_finish_move() {
     let mut state = transfer_state();
     let transfer = shard_transfer(
