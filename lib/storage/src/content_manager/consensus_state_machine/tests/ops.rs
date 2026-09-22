@@ -1312,6 +1312,49 @@ fn transfer_start_replay_rejects_completed() {
 }
 
 #[test]
+fn transfer_start_applies_optimizer_override_to_default_method() {
+    let mut state = auto_resharding_state(1);
+    add_peer(&mut state, PEER_ID, Some("1.17.0"));
+    add_peer(&mut state, OTHER_PEER_ID, Some("1.17.0"));
+
+    let mut context = node_context();
+    context.default_shard_transfer_method = Some(ShardTransferMethod::StreamRecords);
+    context.optimizers_overwrite = Some(prevent_unoptimized_diff());
+
+    let mut transfer = shard_transfer(
+        PEER_ID,
+        OTHER_PEER_ID,
+        false,
+        ShardTransferMethod::StreamRecords,
+    );
+    transfer.method = None;
+
+    let mut machine = ConsensusStateMachine::new(state, context);
+    let outcome = machine.apply(&transfer_op(ShardTransferOperations::Start(transfer)));
+
+    let ApplyOutcome::Accepted(actions) = outcome else {
+        panic!("starting a transfer should be accepted, got {outcome:?}");
+    };
+    assert!(matches!(
+        actions.as_slice(),
+        [
+            Action::RegisterTransfer {
+                transfer: ShardTransfer {
+                    method: Some(ShardTransferMethod::Snapshot),
+                    ..
+                },
+                ..
+            },
+            Action::SetReplicaState {
+                state: ReplicaState::Recovery,
+                ..
+            },
+            Action::SpawnTransferDriver { .. },
+        ]
+    ));
+}
+
+#[test]
 fn transfer_restart() {
     let mut state = transfer_state();
     let transfer = shard_transfer(PEER_ID, OTHER_PEER_ID, false, ShardTransferMethod::WalDelta);
@@ -2632,6 +2675,13 @@ fn optimizers_diff() -> OptimizersConfigDiff {
         flush_interval_sec: None,
         max_optimization_threads: None,
         prevent_unoptimized: None,
+    }
+}
+
+fn prevent_unoptimized_diff() -> OptimizersConfigDiff {
+    OptimizersConfigDiff {
+        prevent_unoptimized: Some(true),
+        ..optimizers_diff()
     }
 }
 

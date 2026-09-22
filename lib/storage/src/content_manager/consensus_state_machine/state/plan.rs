@@ -5,6 +5,7 @@ use collection::collection::vector_name_schema;
 use collection::collection_state::ShardInfo;
 use collection::config::ShardingMethod;
 use collection::operations::cluster_ops::ReshardingDirection;
+use collection::operations::config_diff::DiffConfig as _;
 use collection::operations::types::PeerMetadata;
 use collection::shards::replica_set::replica_set_state::ReplicaState;
 use collection::shards::resharding::{ReshardKey, ReshardState, ReshardingStage};
@@ -955,11 +956,11 @@ impl ClusterState {
             )));
         }
 
-        let prevent_unoptimized = state
-            .config
-            .optimizer_config
-            .prevent_unoptimized
-            .unwrap_or(false);
+        let optimizers = match &context.optimizers_overwrite {
+            Some(overwrite) => state.config.optimizer_config.update(overwrite),
+            None => state.config.optimizer_config.clone(),
+        };
+        let prevent_unoptimized = optimizers.prevent_unoptimized.unwrap_or(false);
 
         if prevent_unoptimized {
             Ok(ShardTransferMethod::Snapshot)
