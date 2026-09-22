@@ -990,14 +990,14 @@ impl ClusterState {
             return Ok(Actions::new());
         }
 
+        let initial_state = initial_replica_state_for_transfer(state, restart.method)?;
+
         let destination_shard = restart.shard_id;
         if !state.shards.contains_key(&destination_shard) {
             return Err(StorageError::bad_request(format!(
                 "Shard {destination_shard} doesn't exist"
             )));
         }
-
-        let initial_state = initial_replica_state_for_transfer(state, restart.method)?;
 
         let new_transfer = ShardTransfer {
             shard_id: restart.shard_id,

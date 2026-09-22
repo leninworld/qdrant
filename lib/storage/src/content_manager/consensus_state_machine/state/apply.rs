@@ -208,6 +208,7 @@ impl ClusterState {
                 let Some(state) = self.collection_mut(collection) else {
                     return;
                 };
+
                 let Some(shard) = state.shards.get_mut(shard_id) else {
                     return;
                 };
