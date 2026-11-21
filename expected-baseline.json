@@ -1,0 +1,32 @@
+{
+  "base_sha": "52fb736a0c02879d4c643d999afafd657cd9085c",
+  "cases": [
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_one_bit_ram_codes_match_build_path","parameter_case":"Uint8/OneBit/always_ram=true","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_one_bit_mmap_codes_match_build_path","parameter_case":"Uint8/OneBit/always_ram=false","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_two_bits_ram_codes_match_build_path","parameter_case":"Uint8/TwoBits/always_ram=true","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_two_bits_mmap_codes_match_build_path","parameter_case":"Uint8/TwoBits/always_ram=false","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_one_and_half_bits_ram_codes_match_build_path","parameter_case":"Uint8/OneAndHalfBits/always_ram=true","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_one_and_half_bits_mmap_codes_match_build_path","parameter_case":"Uint8/OneAndHalfBits/always_ram=false","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float16_underflow_one_bit_codes_match_build_path","parameter_case":"Float16/1e-8/OneBit/Dot","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_multivector_uint8_one_bit_codes_match_build_path","parameter_case":"Uint8/multivector/OneBit","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_multivector_uint8_two_bits_codes_match_build_path","parameter_case":"Uint8/multivector/TwoBits","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_multivector_uint8_one_and_half_bits_codes_match_build_path","parameter_case":"Uint8/multivector/OneAndHalfBits","expect":"fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_decoded_uint8_one_bit_codes_match_build_path","parameter_case":"Decoded/Uint8/OneBit","expect":"fail","marker":"QDRANT11646_U1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_decoded_uint8_two_bits_codes_match_build_path","parameter_case":"Decoded/Uint8/TwoBits","expect":"fail","marker":"QDRANT11646_U1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_decoded_uint8_one_and_half_bits_codes_match_build_path","parameter_case":"Decoded/Uint8/OneAndHalfBits","expect":"fail","marker":"QDRANT11646_U1_CODE_MISMATCH"},
+    {"binary":"integration","test":"qdrant_11646_appendable_parity::appendable_uint8_binary_cosine_matches_build_then_quantize","parameter_case":"Uint8/OneBit/Cosine/O2","expect":"fail","marker":"QDRANT11646_O2_PARITY_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_uint8_turbo_codes_match_build_path","parameter_case":"Uint8/dense/TurboQuant-default/Cosine","expect":"conditional-fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_multivector_uint8_turbo_codes_match_build_path","parameter_case":"Uint8/multivector/TurboQuant-default/Cosine","expect":"conditional-fail","marker":"QDRANT11646_O1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_decoded_uint8_turbo_codes_match_build_path","parameter_case":"Decoded/Uint8/TurboQuant-default/Cosine","expect":"conditional-fail","marker":"QDRANT11646_U1_CODE_MISMATCH"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_one_bit_ram_codes_match_build_path","parameter_case":"Float32/OneBit/always_ram=true","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_one_bit_mmap_codes_match_build_path","parameter_case":"Float32/OneBit/always_ram=false","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_two_bits_ram_codes_match_build_path","parameter_case":"Float32/TwoBits/always_ram=true","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_two_bits_mmap_codes_match_build_path","parameter_case":"Float32/TwoBits/always_ram=false","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_one_and_half_bits_ram_codes_match_build_path","parameter_case":"Float32/OneAndHalfBits/always_ram=true","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::quantized_vectors::tests::appendable_dense_float32_one_and_half_bits_mmap_codes_match_build_path","parameter_case":"Float32/OneAndHalfBits/always_ram=false","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_raw_uint8_codes_match_build_path","parameter_case":"Raw/Uint8/OneBit","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_raw_float16_codes_match_build_path","parameter_case":"Raw/Float16/OneBit","expect":"pass"},
+    {"binary":"segment (lib)","test":"vector_storage::quantized::update_only::tests::update_only_dense_missing_preserves_placeholder_and_slot_count","parameter_case":"Missing/three-slots","expect":"pass"}
+  ],
+  "schema": "qdrant-11646-baseline-matrix-v1"
+}
