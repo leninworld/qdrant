@@ -1,0 +1,46 @@
+{
+  "base_sha": "52fb736a0c02879d4c643d999afafd657cd9085c",
+  "cases": [
+    {
+      "binary": "segment (lib)",
+      "expect": "fail",
+      "marker": "QDRANT11646_UM1_CODE_MISMATCH",
+      "parameter_case": "Decoded/Multivector/Uint8/OneBit",
+      "test": "vector_storage::quantized::update_only::tests::update_only_multivector_decoded_uint8_one_bit_codes_match_build_path"
+    },
+    {
+      "binary": "segment (lib)",
+      "expect": "fail",
+      "marker": "QDRANT11646_UM1_CODE_MISMATCH",
+      "parameter_case": "Decoded/Multivector/Uint8/TwoBits",
+      "test": "vector_storage::quantized::update_only::tests::update_only_multivector_decoded_uint8_two_bits_codes_match_build_path"
+    },
+    {
+      "binary": "segment (lib)",
+      "expect": "fail",
+      "marker": "QDRANT11646_UM1_CODE_MISMATCH",
+      "parameter_case": "Decoded/Multivector/Uint8/OneAndHalfBits",
+      "test": "vector_storage::quantized::update_only::tests::update_only_multivector_decoded_uint8_one_and_half_bits_codes_match_build_path"
+    },
+    {
+      "binary": "segment (lib)",
+      "expect": "fail",
+      "marker": "QDRANT11646_UM1_CODE_MISMATCH",
+      "parameter_case": "Decoded/Multivector/Float16/1e-8/OneBit/Dot",
+      "test": "vector_storage::quantized::update_only::tests::update_only_multivector_decoded_float16_underflow_one_bit_codes_match_build_path"
+    },
+    {
+      "binary": "segment (lib)",
+      "expect": "pass",
+      "parameter_case": "Raw/Multivector/Uint8/OneBit",
+      "test": "vector_storage::quantized::update_only::tests::update_only_multivector_raw_uint8_codes_match_build_path"
+    }
+  ],
+  "rejected_failure_signatures": [
+    "ambient scope",
+    "missing_scope",
+    "error[",
+    "could not compile"
+  ],
+  "schema": "qdrant-11646-baseline-matrix-v2"
+}

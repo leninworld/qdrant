@@ -1,0 +1,284 @@
+name: Qdrant 11666 feedback attempt 4
+
+on:
+  push:
+    branches: [validate-qdrant11666-fb4]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  versions:
+    name: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: validation-package
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: qdrant/qdrant
+          ref: 52fb736a0c02879d4c643d999afafd657cd9085c
+          path: source
+      - uses: dtolnay/rust-toolchain@0f1b44df7e9cbb178d781a242338dfa5e243ad7f # nightly
+        with:
+          components: rustfmt
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - uses: taiki-e/install-action@3a0adc33ab45d7b9b9da91822dd2b3c0151704be # nextest
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Verify package and record missing versions first
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd validation-package
+          sha256sum -c SHA256SUMS
+          cd ../source
+          {
+            cargo +nightly fmt -- -V
+            cargo nextest --version
+            uv tool install ast-grep-cli==0.44.1
+            ast-grep --version
+          } | tee ../versions.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qdrant-11646-versions
+          path: versions.txt
+
+  red-baseline:
+    name: red-baseline
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - name: Reproduce exact PR head
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch -p1 --forward < ../validation-package/head.patch
+          git add -A
+          test "$(git write-tree)" = 1fd6e3ed471d2af3273ecb3a928dc1745f4e6d14
+          patch -p1 --forward < ../validation-package/tests-only.patch
+      - name: Install Protoc
+        uses: ./source/.github/actions/setup-protoc
+      - name: Run exact red matrix
+        working-directory: source
+        run: python3 -I -B ../validation-package/scripts/baseline_runner.py --matrix ../validation-package/expected-red.json --output ../red-baseline-results.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with: {name: qdrant-11666-red-baseline, path: red-baseline-results.json}
+
+  candidate-targeted:
+    name: candidate-targeted
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - name: Apply candidate
+        working-directory: source
+        run: patch -p1 --forward < ../validation-package/candidate.patch
+      - name: Install Protoc
+        uses: ./source/.github/actions/setup-protoc
+      - name: Run candidate target tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p segment --lib vector_storage::quantized::quantized_vectors::tests::
+          cargo test --locked -p segment --lib vector_storage::quantized::update_only::tests::
+          cargo test --locked -p segment --test integration qdrant_11646_appendable_parity::
+
+  segment-nextest:
+    name: segment-nextest
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - uses: taiki-e/install-action@3a0adc33ab45d7b9b9da91822dd2b3c0151704be
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - name: Segment nextest
+        working-directory: source
+        run: cargo nextest run -p segment --profile ci --locked
+
+  workspace-test-build:
+    name: workspace-test-build
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - name: Upstream workspace test build
+        working-directory: source
+        run: cargo build --workspace --tests --locked
+
+  affected-package:
+    name: affected-package
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - uses: taiki-e/install-action@3a0adc33ab45d7b9b9da91822dd2b3c0151704be
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - name: Affected package commands (segment)
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build -p segment --tests --locked
+          cargo nextest run -p segment --profile ci --locked
+
+  clippy-default:
+    name: clippy-default
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        with: {components: clippy}
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - run: sudo apt-get update && sudo apt-get install -y clang libunwind-dev
+      - run: cargo clippy --workspace -- -D warnings
+        working-directory: source
+
+  clippy-all-targets:
+    name: clippy-all-targets
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        with: {components: clippy}
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - run: sudo apt-get update && sudo apt-get install -y clang libunwind-dev
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+        working-directory: source
+
+  clippy-all-features:
+    name: clippy-all-features
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        with: {components: clippy}
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - run: sudo apt-get update && sudo apt-get install -y clang libunwind-dev
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        working-directory: source
+
+  fmt:
+    name: fmt
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@0f1b44df7e9cbb178d781a242338dfa5e243ad7f
+        with: {components: rustfmt}
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - run: cargo +nightly fmt --all -- --check
+        working-directory: source
+
+  ast-grep:
+    name: ast-grep
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - run: uv tool install ast-grep-cli==0.44.1
+      - name: Test ast-grep rules
+        working-directory: source
+        run: sg test --config tools/ast-grep/sgconfig.yml --skip-snapshot-tests
+      - name: Scan ast-grep rules
+        working-directory: source
+        run: sg scan --config tools/ast-grep/sgconfig.yml
+
+  gpu:
+    name: gpu
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {path: validation-package}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: qdrant/qdrant, ref: 52fb736a0c02879d4c643d999afafd657cd9085c, path: source}
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - uses: taiki-e/install-action@3a0adc33ab45d7b9b9da91822dd2b3c0151704be
+      - run: patch -p1 --forward < ../validation-package/candidate.patch
+        working-directory: source
+      - uses: ./source/.github/actions/setup-protoc
+      - name: Install Vulkan packages
+        run: sudo apt-get update -y && sudo apt-get install -y clang mesa-vulkan-drivers libvulkan1 vulkan-tools vulkan-validationlayers && /usr/bin/vulkaninfo --summary
+      - name: GPU workspace test build
+        working-directory: source
+        run: cargo build --workspace --tests --features gpu --locked
+      - name: Put test temp files on tmpfs
+        run: sudo mkdir -p /mnt/test-tmp && sudo mount -t tmpfs -o size=50%,mode=1777 tmpfs /mnt/test-tmp && echo TMPDIR=/mnt/test-tmp >> "$GITHUB_ENV"
+      - name: GPU nextest
+        working-directory: source
+        run: cargo nextest run --workspace --features gpu --profile ci --locked
