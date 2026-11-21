@@ -1,0 +1,175 @@
+name: Qdrant 11182 docs validation (non-product)
+
+on:
+  push:
+    branches:
+      - validate-qdrant11182-docs-a3
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qdrant-11182-docs-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  PR_REPOSITORY: leninworld/qdrant
+  PR_HEAD: 89a5f667706b66700eb001bc7feb60549badf073
+
+jobs:
+  docs-validation:
+    name: Format and compile collection tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout validation packet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; upstream pin
+        with:
+          path: packet
+          persist-credentials: false
+      - name: Checkout exact PR head from fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; upstream pin
+        with:
+          repository: ${{ env.PR_REPOSITORY }}
+          ref: ${{ env.PR_HEAD }}
+          path: source
+          persist-credentials: false
+      - name: Install minimal nightly (only for fmt)
+        uses: dtolnay/rust-toolchain@0f1b44df7e9cbb178d781a242338dfa5e243ad7f # nightly; upstream pin
+        with:
+          components: rustfmt
+      - name: Install minimal stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable; upstream pin
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Configure mold linker
+        shell: bash
+        run: |
+          mkdir source/.cargo
+          cat > source/.cargo/config.toml <<'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2; upstream pin
+        with:
+          workspaces: source
+          save-if: false
+      - name: Install Protoc
+        uses: ./source/.github/actions/setup-protoc
+      - name: Install mold
+        uses: rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36 # v1; upstream pin
+      - name: Record tool versions and source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          {
+            echo "pr_repository=${PR_REPOSITORY}"
+            echo "pr_head=${PR_HEAD}"
+            echo "runner_image=${ImageOS:-unknown}"
+            rustc --version --verbose
+            cargo --version --verbose
+            rustfmt --version
+            rustfmt +nightly --version
+            protoc --version
+            clang --version | head -n 1
+            mold --version
+          } | tee evidence/versions.txt
+          test "$(git -C source rev-parse HEAD)" = "$PR_HEAD"
+          git -C source status --short --untracked-files=no | tee evidence/status-before.txt
+          test ! -s evidence/status-before.txt
+      - name: Confirm collection edition and rustfmt configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee evidence/rust-format-contract.txt
+          import hashlib
+          import tomllib
+          from pathlib import Path
+
+          root = Path("source")
+          workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+          collection = tomllib.loads((root / "lib/collection/Cargo.toml").read_text(encoding="utf-8"))
+          declared = collection["package"]["edition"]
+          edition = workspace["workspace"]["package"]["edition"] if declared.get("workspace") is True else declared
+          if edition != "2024":
+              raise SystemExit(f"unexpected collection edition: {edition!r}")
+          config = root / "rustfmt.toml"
+          data = config.read_bytes()
+          print(f"collection_edition={edition}")
+          print(f"collection_edition_workspace={declared.get('workspace') is True}")
+          print(f"rustfmt_config=rustfmt.toml")
+          print(f"rustfmt_config_sha256={hashlib.sha256(data).hexdigest()}")
+          PY
+      - name: Record unpatched workspace formatting baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          set +e
+          cargo +nightly fmt --all -- --check 2>&1 \
+            | tee ../evidence/workspace-fmt-baseline.log
+          fmt_rc=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$fmt_rc" | tee ../evidence/workspace-fmt-baseline.exit
+          python3 ../packet/fmt_diff_guard.py list \
+            --log ../evidence/workspace-fmt-baseline.log \
+            --source-root "$PWD" \
+            --output ../evidence/workspace-fmt-baseline-files.txt
+      - name: Apply documentation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C source apply --check "$GITHUB_WORKSPACE/packet/docs.diff"
+          git -C source apply "$GITHUB_WORKSPACE/packet/docs.diff"
+          git -C source diff --check
+          git -C source diff -- lib/collection/src/tests/deferred_points_tests.rs \
+            | tee evidence/applied.diff
+          sha256sum source/lib/collection/src/tests/deferred_points_tests.rs \
+            | tee evidence/patched-file.sha256
+      - name: Check patched file formatting and unchanged workspace diff list
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          rustfmt +nightly --edition 2024 --check \
+            lib/collection/src/tests/deferred_points_tests.rs 2>&1 \
+            | tee ../evidence/patched-file-rustfmt.log
+          set +e
+          cargo +nightly fmt --all -- --check 2>&1 \
+            | tee ../evidence/workspace-fmt-candidate.log
+          fmt_rc=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$fmt_rc" | tee ../evidence/workspace-fmt-candidate.exit
+          python3 ../packet/fmt_diff_guard.py compare \
+            --baseline-log ../evidence/workspace-fmt-baseline.log \
+            --baseline-return-code "$(cat ../evidence/workspace-fmt-baseline.exit)" \
+            --candidate-log ../evidence/workspace-fmt-candidate.log \
+            --candidate-return-code "$fmt_rc" \
+            --source-root "$PWD" \
+            --baseline-output ../evidence/workspace-fmt-baseline-files.txt \
+            --candidate-output ../evidence/workspace-fmt-candidate-files.txt
+      - name: Compile collection test target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          cargo test -p collection --no-run --locked 2>&1 \
+            | tee ../evidence/collection-no-run.log
+      - name: Record final source state
+        if: always()
+        shell: bash
+        run: |
+          git -C source status --short --untracked-files=no | tee evidence/status-after.txt
+          sha256sum packet/docs.diff | tee evidence/docs-diff.sha256
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2; upstream pin
+        with:
+          name: qdrant-11182-docs-validation
+          path: evidence
+          if-no-files-found: error
